@@ -56,6 +56,8 @@ Note: In our experience some users may have issues exectutign step (2). This is 
 ```
 pip install git+https://github.com/TimDettmers/spodernet.git
 ```
+ 
+Alternative, add a folder titled 'src' at the top-level of the directory and clone 'spodernet' and 'bashmagic' within the folder for the package imports to be imported from.
 
 ## Running a model
 
@@ -144,7 +146,7 @@ optional arguments:
 ```
 To reproduce most of the results in the ConvE paper, you can use the default parameters and execute the command below:
 ```
-CUDA_VISIBLE_DEVICES=0 python3 main.py --data DATASET_NAME
+CUDA_VISIBLE_DEVICES=1 python3 main.py --data DATASET_NAME
 ```
 For the reverse model, you can run the provided file with the name of the dataset name and a threshold probability:
 
@@ -156,10 +158,10 @@ python inverse_model.py WN18RR 0.9
 For the transfer learning, you can use the default parameters and execute the command below:
 
 ```
-CUDA_VISIBLE_DEVICES=0 python3 main.py --data DATASET_NAME --transfer-data TRASFER_DATASET_NAME --early-stop-loss FLOAT_LOSS_VALUE_TO_TERMINATE_TRAINING
+CUDA_VISIBLE_DEVICES=1 python3 main.py --data DATASET_NAME --transfer-data TRASFER_DATASET_NAME --early-stop-loss FLOAT_LOSS_VALUE_TO_TERMINATE_TRAINING
 ```
 
-In order for transfer learning to be successful, the TRANSFER_DATASET_NAME specified must have a model in the saved models folder trained on the dataset. Further, for transfer learning to be executed both the model in the saved_models folder for the TRANSFER_DATASET_NAME and the model which transfer learning is being applied to should been trained under the same hyperparameters.
+In order for transfer learning to be successful, the 'saved_models' folder submitted must be placed at the top level of this repository. The TRANSFER_DATASET_NAME specified must have a model in the saved models folder trained on the dataset. Further, for transfer learning to be executed both the model in the saved_models folder for the TRANSFER_DATASET_NAME and the model which transfer learning is being applied to should been trained under the same hyperparameters.
 
 
 ### Changing the embedding size for ConvE

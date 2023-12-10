@@ -33,8 +33,8 @@ import argparse
 np.set_printoptions(precision=3)
 log = Logger('model_load.txt')
 
-cudnn.benchmark = False
-
+# cudnn.benchmark = False
+cudnn.benchmark = True
 
 ''' Preprocess knowledge graph using spodernet. '''
 def preprocess(dataset_name, delete_data=False):
@@ -110,7 +110,8 @@ def main(args, model_path, transfer_path):
     train_batcher.subscribe_to_events(eta)
     train_batcher.subscribe_to_start_of_epoch_event(eta)
     train_batcher.subscribe_to_events(LossHook('train', print_every_x_batches=args.log_interval))
-
+    
+    model.cuda()
     if args.resume:
         model_params = torch.load(model_path)
         print(model)
@@ -220,7 +221,7 @@ if __name__ == '__main__':
 
     # parse console parameters and set global variables
     Config.backend = 'pytorch'
-    Config.cuda = False
+    Config.cuda = True #False
     Config.embedding_dim = args.embedding_dim
     #Logger.GLOBAL_LOG_LEVEL = LogLevel.DEBUG
 
