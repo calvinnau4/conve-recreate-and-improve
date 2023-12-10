@@ -6,6 +6,8 @@ import argparse
 import sys
 import os
 import math
+import logging
+import datetime
 
 from os.path import join
 import torch.backends.cudnn as cudnn
@@ -13,6 +15,7 @@ import torch.backends.cudnn as cudnn
 from evaluation import ranking_and_hits
 from model import ConvE, DistMult, Complex
 
+import spodernet
 from spodernet.preprocessing.pipeline import Pipeline, DatasetStreamer
 from spodernet.preprocessing.processors import JsonLoaderProcessors, Tokenizer, AddToVocab, SaveLengthsToState, StreamToHDF5, SaveMaxLengthsToState, CustomTokenizer
 from spodernet.preprocessing.processors import ConvertTokenToIdx, ApplyFunction, ToLower, DictKey2ListMapper, ApplyFunction, StreamToBatch
@@ -28,8 +31,9 @@ import argparse
 
 
 np.set_printoptions(precision=3)
+log = Logger('model_load.txt')
 
-cudnn.benchmark = True
+cudnn.benchmark = False
 
 
 ''' Preprocess knowledge graph using spodernet. '''
@@ -73,7 +77,7 @@ def preprocess(dataset_name, delete_data=False):
         p.execute(d)
 
 
-def main(args, model_path):
+def main(args, model_path, transfer_path):
     if args.preprocess: preprocess(args.data, delete_data=True)
     input_keys = ['e1', 'rel', 'rel_eval', 'e2', 'e2_multi1', 'e2_multi2']
     p = Pipeline(args.data, keys=input_keys)
@@ -107,7 +111,6 @@ def main(args, model_path):
     train_batcher.subscribe_to_start_of_epoch_event(eta)
     train_batcher.subscribe_to_events(LossHook('train', print_every_x_batches=args.log_interval))
 
-    model.cuda()
     if args.resume:
         model_params = torch.load(model_path)
         print(model)
@@ -123,6 +126,28 @@ def main(args, model_path):
         ranking_and_hits(model, dev_rank_batcher, vocab, 'dev_evaluation')
     else:
         model.init()
+    
+    if args.transfer_data is not None:
+        # Load transfer model weights
+        log.info(f"Loading previously trained model from: /{transfer_path}")
+        model_params = torch.load(transfer_path)
+
+        # Update the new model with the weights from the transfer learning model (i.e., the previously trained model)
+        with torch.no_grad():
+            model.conv1.weight = torch.nn.Parameter(model_params['conv1.weight'])
+
+            model.bn0.weight = torch.nn.Parameter(model_params['bn0.weight'])
+            model.bn0.bias = torch.nn.Parameter(model_params['bn0.bias'])
+
+            model.bn1.weight = torch.nn.Parameter(model_params['bn1.weight'])
+            model.bn1.bias = torch.nn.Parameter(model_params['bn1.bias'])
+
+            model.bn2.weight = torch.nn.Parameter(model_params['bn2.weight'])
+            model.bn2.bias = torch.nn.Parameter(model_params['bn2.bias'])
+            
+            model.fc.weight = torch.nn.Parameter(model_params['fc.weight'])
+            model.fc.bias = torch.nn.Parameter(model_params['fc.bias'])
+
 
     total_param_size = []
     params = [value.numel() for value in model.parameters()]
@@ -159,6 +184,9 @@ def main(args, model_path):
                 if epoch > 0:
                     ranking_and_hits(model, test_rank_batcher, vocab, 'test_evaluation')
 
+        if loss <= args.early_stop_loss:
+            log.info(f"Early stopping criteria met")
+            break
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Link prediction for knowledge graphs')
@@ -180,6 +208,8 @@ if __name__ == '__main__':
     parser.add_argument('--loader-threads', type=int, default=4, help='How many loader threads to use for the batch loaders. Default: 4')
     parser.add_argument('--preprocess', action='store_true', help='Preprocess the dataset. Needs to be executed only once. Default: 4')
     parser.add_argument('--resume', action='store_true', help='Resume a model.')
+    parser.add_argument('--transfer-data', type=str, default=None, help='Path from which to transfer a model.')
+    parser.add_argument('--early-stop-loss', type=float, default=0, help='Path from which to transfer a model.')
     parser.add_argument('--use-bias', action='store_true', help='Use a bias in the convolutional layer. Default: True')
     parser.add_argument('--label-smoothing', type=float, default=0.1, help='Label smoothing value to use. Default: 0.1')
     parser.add_argument('--hidden-size', type=int, default=9728, help='The side of the hidden layer. The required size changes with the size of the embeddings. Default: 9728 (embedding size 200).')
@@ -190,13 +220,19 @@ if __name__ == '__main__':
 
     # parse console parameters and set global variables
     Config.backend = 'pytorch'
-    Config.cuda = True
+    Config.cuda = False
     Config.embedding_dim = args.embedding_dim
     #Logger.GLOBAL_LOG_LEVEL = LogLevel.DEBUG
 
-
     model_name = '{2}_{0}_{1}'.format(args.input_drop, args.hidden_drop, args.model)
     model_path = 'saved_models/{0}_{1}.model'.format(args.data, model_name)
-
+    
+    if args.transfer_data is not None:
+        transfer_model_name = '{2}_{0}_{1}'.format(args.input_drop, args.hidden_drop, args.model)
+        transfer_path = 'saved_models/{0}_{1}.model'.format(args.transfer_data, model_name)
+        model_path = 'saved_models/{0}_{1}_start_weight_{2}_{3}.model'.format(model_name, args.data, transfer_model_name, args.transfer_data)
+    else:
+        transfer_path = None
+    
     torch.manual_seed(args.seed)
-    main(args, model_path)
+    main(args, model_path, transfer_path)

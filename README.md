@@ -6,6 +6,9 @@ Paper: [Convolutional 2D Knowledge Graph Embeddings](https://arxiv.org/abs/1707.
 Used in the paper, but *do not use these datasets for your research*:
 [FB15k and WN18](https://everest.hds.utc.fr/doku.php?id=en:transe). Please also note that the Kinship and Nations datasets have a high number of inverse relationships which makes them unsuitable for research. Nations has +95% inverse relationships and Kinship about 48%.
 
+## Declaration
+This code repository is a modified code repository from the provided paper published by Dettmers et al. All modifications were made in good faith and the overwhelming majority of the intellectual content is not that of the submitting authors - Gerrit Krot, Alejandro Yaber Llanos, and Calvin Nau
+
 ## ConvE key facts
 
 ### Predictive performance
@@ -48,6 +51,11 @@ This repo supports Linux and Python installation via Anaconda.
 3. Download the default English model used by [spaCy](https://github.com/explosion/spaCy), which is installed in the previous step `python -m spacy download en_core_web_sm`
 4. Run the preprocessing script for WN18RR, FB15k-237, YAGO3-10, UMLS, Kinship, and Nations: `sh preprocess.sh`
 5. You can now run the model
+
+Note: In our experience some users may have issues exectutign step (2). This is generally a result of issues installing spodernet. If you have difficulty installing spodernet attempt to pip install the packge as specified below:
+```
+pip install git+https://github.com/TimDettmers/spodernet.git
+```
 
 ## Running a model
 
@@ -124,6 +132,8 @@ optional arguments:
   --preprocess          Preprocess the dataset. Needs to be executed only
                         once. Default: 4
   --resume              Resume a model.
+  --transfer-data       Specify the dataset which will be used for transfer learning. Note that this will be used to search the "saved_models" directory. If there is not a saved model with the datasets name and trained under the hyperparameters as the model which is currently attempted to be trained this arg will not work.
+  --early-stop-loss     Specify the loss value at which the model should stop training. This will work whether transfer learning is being applied or not (though it was originally intended to be used to terminate transfer learning)
   --use-bias            Use a bias in the convolutional layer. Default: True
   --label-smoothing LABEL_SMOOTHING
                         Label smoothing value to use. Default: 0.1
@@ -134,13 +144,23 @@ optional arguments:
 ```
 To reproduce most of the results in the ConvE paper, you can use the default parameters and execute the command below:
 ```
-CUDA_VISIBLE_DEVICES=0 python main.py --data DATASET_NAME
+CUDA_VISIBLE_DEVICES=0 python3 main.py --data DATASET_NAME
 ```
 For the reverse model, you can run the provided file with the name of the dataset name and a threshold probability:
 
 ```
 python inverse_model.py WN18RR 0.9
 ```
+
+### Transfer Learning for ConvE
+For the transfer learning, you can use the default parameters and execute the command below:
+
+```
+CUDA_VISIBLE_DEVICES=0 python3 main.py --data DATASET_NAME --transfer-data TRASFER_DATASET_NAME --early-stop-loss FLOAT_LOSS_VALUE_TO_TERMINATE_TRAINING
+```
+
+In order for transfer learning to be successful, the TRANSFER_DATASET_NAME specified must have a model in the saved models folder trained on the dataset. Further, for transfer learning to be executed both the model in the saved_models folder for the TRANSFER_DATASET_NAME and the model which transfer learning is being applied to should been trained under the same hyperparameters.
+
 
 ### Changing the embedding size for ConvE
 
